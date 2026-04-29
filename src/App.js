@@ -1,9 +1,15 @@
 import { useState } from "react";
 
-// Uses public Solana RPC endpoints that have CORS enabled
+// In dev, the relative path "/" hits the CRA proxy (see package.json) which
+// forwards to api.mainnet-beta.solana.com server-side, bypassing browser CORS.
+// In production builds the proxy doesn't apply, so we fall back to public
+// RPCs that send Access-Control-Allow-Origin headers.
+const isDev = process.env.NODE_ENV === "development";
 const RPC_ENDPOINTS = [
-  "https://solana-mainnet.g.alchemy.com/v2/demo",
-  "https://api.mainnet-beta.solana.com",
+  ...(isDev ? ["/"] : []),
+  "https://solana-rpc.publicnode.com",
+  "https://solana.drpc.org",
+  "https://rpc.ankr.com/solana",
 ];
 
 const styles = `
@@ -94,35 +100,49 @@ const getRiskColor = s => s >= 75 ? "#ff3b5c" : s >= 45 ? "#ffaa00" : "#00ff88";
 const getRiskLabel = s => s >= 75 ? "HIGH RISK" : s >= 45 ? "MEDIUM RISK" : "LOW RISK";
 const getRiskVerdict = s => s >= 75 ? "⚠ EXERCISE EXTREME CAUTION" : s >= 45 ? "◈ PROCEED WITH CAUTION" : "✓ APPEARS RELATIVELY SAFE";
 
+// Returns { ok: true, result } on success, { ok: false, reason: "rpc-down" }
+// when every endpoint failed to respond (network/CORS), or { ok: false,
+// reason: "rpc-error", error } when an endpoint responded with a JSON-RPC
+// error (e.g. invalid params). The caller distinguishes these from a
+// genuine "account does not exist" answer (ok: true, result: { value: null }).
 async function rpcCall(method, params) {
+  let lastRpcError = null;
+  let reachedAny = false;
   for (const endpoint of RPC_ENDPOINTS) {
     try {
       const res = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params })
       });
+      reachedAny = true;
       if (!res.ok) continue;
       const data = await res.json();
-      if (data.error) continue;
-      return data.result;
-    } catch (e) { continue; }
+      if (data.error) { lastRpcError = data.error; continue; }
+      return { ok: true, result: data.result };
+    } catch (e) {
+      // Network/CORS failure — try next endpoint.
+      continue;
+    }
   }
-  return null;
+  if (lastRpcError) return { ok: false, reason: "rpc-error", error: lastRpcError };
+  return { ok: false, reason: reachedAny ? "rpc-down" : "rpc-blocked" };
 }
 
 function generateAIAnalysis(result) {
   const { name, symbol, mintAuth, freezeAuth, topHolderPct, hasMetadata, riskScore, supply } = result;
 
+  const concentrationKnown = topHolderPct !== null;
+
   if (riskScore >= 75) {
-    return `${name} (${symbol}) presents significant security concerns that warrant extreme caution. ${mintAuth ? "The mint authority remains active, meaning the developer can create unlimited new tokens at any time, which could drastically dilute the value of existing holdings." : ""} ${freezeAuth ? "The freeze authority is enabled, giving the developer the ability to lock token accounts and prevent holders from transferring their tokens." : ""} ${topHolderPct > 50 ? `Extreme supply concentration is detected — a single wallet controls ${topHolderPct}% of all tokens, creating massive dump risk.` : ""} This token exhibits multiple characteristics commonly associated with rug pulls and should be approached with extreme caution or avoided entirely.`;
+    return `${name} (${symbol}) presents significant security concerns that warrant extreme caution. ${mintAuth ? "The mint authority remains active, meaning the developer can create unlimited new tokens at any time, which could drastically dilute the value of existing holdings." : ""} ${freezeAuth ? "The freeze authority is enabled, giving the developer the ability to lock token accounts and prevent holders from transferring their tokens." : ""} ${concentrationKnown && topHolderPct > 50 ? `Extreme supply concentration is detected — a single wallet controls ${topHolderPct}% of all tokens, creating massive dump risk.` : ""} This token exhibits multiple characteristics commonly associated with rug pulls and should be approached with extreme caution or avoided entirely.`;
   }
 
   if (riskScore >= 45) {
-    return `${name} (${symbol}) shows some risk indicators that require careful consideration before investing. ${mintAuth ? "The mint authority has not been revoked — this is a yellow flag as it gives the team ability to inflate supply." : "The mint authority has been revoked, which is a positive sign for supply integrity."} ${topHolderPct > 20 ? `Supply concentration is elevated with the top holder controlling ${topHolderPct}% of tokens — watch for large sell orders.` : "Holder distribution appears reasonable."} ${hasMetadata ? "Token metadata is present and verifiable on-chain." : "Missing token metadata is a concern — legitimate projects typically have complete metadata."} Do your own research and consider position sizing carefully given these factors.`;
+    return `${name} (${symbol}) shows some risk indicators that require careful consideration before investing. ${mintAuth ? "The mint authority has not been revoked — this is a yellow flag as it gives the team ability to inflate supply." : "The mint authority has been revoked, which is a positive sign for supply integrity."} ${!concentrationKnown ? "Holder concentration data was unavailable from the public RPC, so distribution risk could not be assessed." : topHolderPct > 20 ? `Supply concentration is elevated with the top holder controlling ${topHolderPct}% of tokens — watch for large sell orders.` : "Holder distribution appears reasonable."} ${hasMetadata ? "Token metadata is present and verifiable on-chain." : "Missing token metadata is a concern — legitimate projects typically have complete metadata."} Do your own research and consider position sizing carefully given these factors.`;
   }
 
-  return `${name} (${symbol}) appears relatively safe based on on-chain indicators. ${mintAuth ? "Note that mint authority is still active." : "The mint authority has been revoked, fixing the total supply — this is a strong positive signal."} ${freezeAuth ? "Freeze authority is present — a minor concern worth noting." : "No freeze authority detected — token holders cannot have their accounts frozen."} ${topHolderPct < 20 ? `Supply distribution looks healthy with the top holder controlling only ${topHolderPct}% of tokens.` : ""} While on-chain fundamentals look clean, always conduct thorough research including team background, liquidity depth, and project utility before investing. Past safety indicators do not guarantee future performance.`;
+  return `${name} (${symbol}) appears relatively safe based on on-chain indicators. ${mintAuth ? "Note that mint authority is still active." : "The mint authority has been revoked, fixing the total supply — this is a strong positive signal."} ${freezeAuth ? "Freeze authority is present — a minor concern worth noting." : "No freeze authority detected — token holders cannot have their accounts frozen."} ${concentrationKnown && topHolderPct < 20 ? `Supply distribution looks healthy with the top holder controlling only ${topHolderPct}% of tokens.` : ""} While on-chain fundamentals look clean, always conduct thorough research including team background, liquidity depth, and project utility before investing. Past safety indicators do not guarantee future performance.`;
 }
 
 export default function SolanaAuditAI() {
@@ -147,11 +167,19 @@ export default function SolanaAuditAI() {
 
       // Get token account info
       addLog("> FETCHING TOKEN MINT DATA...", true);
-      const mintInfo = await rpcCall("getAccountInfo", [
+      const mintCall = await rpcCall("getAccountInfo", [
         address.trim(),
         { encoding: "jsonParsed" }
       ]);
 
+      if (!mintCall.ok) {
+        if (mintCall.reason === "rpc-error" && mintCall.error?.message) {
+          throw new Error(`RPC error: ${mintCall.error.message}`);
+        }
+        throw new Error("Unable to reach Solana RPC. Check your network or try again — public endpoints may be rate-limiting.");
+      }
+
+      const mintInfo = mintCall.result;
       if (!mintInfo || !mintInfo.value) {
         throw new Error("Token not found. Please check the mint address.");
       }
@@ -169,24 +197,25 @@ export default function SolanaAuditAI() {
 
       addLog("> SCANNING LARGEST HOLDERS...", true);
 
-      // Get largest token accounts
-      const holdersResult = await rpcCall("getTokenLargestAccounts", [address.trim()]);
-      const topHolders = holdersResult?.value || [];
+      // Get largest token accounts. Public free RPCs frequently rate-limit or
+      // disable this method, so treat it as best-effort: null = unknown.
+      const holdersCall = await rpcCall("getTokenLargestAccounts", [address.trim()]);
+      const topHolders = holdersCall.ok ? (holdersCall.result?.value || []) : null;
 
-      let topHolderPct = 0;
-      if (topHolders.length > 0 && actualSupply > 0) {
+      let topHolderPct = null;
+      if (topHolders && topHolders.length > 0 && actualSupply > 0) {
         const topAmount = parseFloat(topHolders[0]?.uiAmount || 0);
         topHolderPct = Math.min(99, Math.round((topAmount / actualSupply) * 100));
       }
 
       addLog("> CHECKING TRANSACTION HISTORY...", true); await sleep(300);
 
-      // Get recent signatures
-      const sigs = await rpcCall("getSignaturesForAddress", [
+      // Get recent signatures (best-effort)
+      const sigsCall = await rpcCall("getSignaturesForAddress", [
         address.trim(),
         { limit: 5 }
       ]);
-      const recentTxCount = sigs?.length || 0;
+      const recentTxCount = sigsCall.ok ? (sigsCall.result?.length || 0) : 0;
 
       addLog("> RUNNING THREAT ANALYSIS...", true); await sleep(400);
 
@@ -214,7 +243,9 @@ export default function SolanaAuditAI() {
         flags.push({ text: "No freeze authority — token holders cannot have their accounts frozen", severity: "SAFE", color: "#00ff88" });
       }
 
-      if (topHolderPct > 50) {
+      if (topHolderPct === null) {
+        flags.push({ text: "Holder distribution data unavailable — public RPC rate-limited the largest-accounts query", severity: "UNKNOWN", color: "#4a7a8a" });
+      } else if (topHolderPct > 50) {
         flags.push({ text: `Top holder controls ${topHolderPct}% of total supply — extreme concentration risk`, severity: "CRITICAL", color: "#ff3b5c" });
         riskScore += 30;
       } else if (topHolderPct > 20) {
@@ -350,10 +381,10 @@ export default function SolanaAuditAI() {
               </div>
               <div className="data-card">
                 <div className="data-card-label">Top Holder</div>
-                <div className="data-card-value" style={{ color: result.topHolderPct > 50 ? "#ff3b5c" : result.topHolderPct > 20 ? "#ffaa00" : "#00ff88" }}>
-                  {result.topHolderPct}%
+                <div className="data-card-value" style={{ color: result.topHolderPct === null ? "#4a7a8a" : result.topHolderPct > 50 ? "#ff3b5c" : result.topHolderPct > 20 ? "#ffaa00" : "#00ff88" }}>
+                  {result.topHolderPct === null ? "—" : `${result.topHolderPct}%`}
                 </div>
-                <div className="data-card-sub">of total supply</div>
+                <div className="data-card-sub">{result.topHolderPct === null ? "data unavailable" : "of total supply"}</div>
               </div>
               <div className="data-card">
                 <div className="data-card-label">Total Supply</div>
