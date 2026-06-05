@@ -200,10 +200,25 @@ write command prints the transaction signature and an Explorer link.
 
 ## Devnet deployment & transaction links
 
-<!-- DEVNET_LINKS -->
-_Populated after `anchor deploy` to devnet — program account + sample
-instruction transactions (init-org, create-role, assign, perform) on Solana
-Explorer (`?cluster=devnet`)._
+Deployed and exercised on **devnet**. The program is live and the following
+transactions were produced by the CLI client against it.
+
+**Program account:**
+[`8VF17ZETUYhtM4omTTgUa6ghESD7J9L9tcG5FJmMkoa2`](https://explorer.solana.com/address/8VF17ZETUYhtM4omTTgUa6ghESD7J9L9tcG5FJmMkoa2?cluster=devnet)
+
+**Sample organization PDA:**
+[`7wMqB9YTHkEpw9Uz12inWt8VPCb9ph5kQXHXvATEtQ4W`](https://explorer.solana.com/address/7wMqB9YTHkEpw9Uz12inWt8VPCb9ph5kQXHXvATEtQ4W?cluster=devnet)
+
+| Step | Instruction | Transaction |
+| ---- | ----------- | ----------- |
+| 1 | `initialize_organization` | [`CQ4a2j…tW6hMn`](https://explorer.solana.com/tx/CQ4a2j8GbxZNEsjGJahQURsZq5wQ1a8S8gPRLfyijEVx59yCEJ7BxH7S55ZUgRkd1FRUZfiMDQUAa3pW8tW6hMn?cluster=devnet) |
+| 2 | `create_role` (editor: read\|write) | [`4N1xVP…D3AQmH`](https://explorer.solana.com/tx/4N1xVPgsQRVfQhPLXzwi6ydLXwsAgg9Bbs25Cins2KQNvLYVLZfvtgJmZ82xUZTgZxYNHGkL8jXqEz33rrD3AQmH?cluster=devnet) |
+| 3 | `create_role` (viewer: read) | [`59gG5u…x3x36ML`](https://explorer.solana.com/tx/59gG5uA5i6z1Yq1fiJ9xGURGLk9NYkFXuwacD5bHCbCbHqLBDxURVKEVbKJCJxAYa6KxyqQjySj6EbtGMx3x36ML?cluster=devnet) |
+| 4 | `assign_role` (admin → editor) | [`4jocRq…vfRTXtp`](https://explorer.solana.com/tx/4jocRqf9o7xiuwXne7kMPgmjRxxmHDkmwEpsYomUeECrNJQsneJMJ8anNa8eg91yRR6VGjSHYxa8gWnd6vfRTXtp?cluster=devnet) |
+| 5 | `perform_action` (write — authorized) | [`5jEaFo…uxVPM7VL`](https://explorer.solana.com/tx/5jEaFoYaUWbZCaCc9t1GUqAY4a5CoPCKnA1J2sWH6LjeLHGVcMVYPVKi6sf4a8Jbh5vucm43CbFgoYiKuxVPM7VL?cluster=devnet) |
+
+Reproduce with `yarn cli init-org && yarn cli create-role 0 editor read,write && …`
+(see the CLI section above).
 
 ---
 
