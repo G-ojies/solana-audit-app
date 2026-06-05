@@ -1,0 +1,710 @@
+{
+  "address": "8VF17ZETUYhtM4omTTgUa6ghESD7J9L9tcG5FJmMkoa2",
+  "metadata": {
+    "name": "onchain_rbac",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "docs": [
+    "On-chain Role-Based Access Control.",
+    "",
+    "A classic Web2 backend pattern — organizations, roles, and per-user role",
+    "assignments guarding protected actions — rebuilt as a Solana program where",
+    "every record is a PDA and every guard is enforced by the runtime."
+  ],
+  "instructions": [
+    {
+      "name": "assign_role",
+      "docs": [
+        "Admin: assign a user to a role (creates an active membership)."
+      ],
+      "discriminator": [
+        255,
+        174,
+        125,
+        180,
+        203,
+        155,
+        202,
+        131
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "admin"
+              }
+            ]
+          },
+          "relations": [
+            "role"
+          ]
+        },
+        {
+          "name": "role",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "account",
+                "path": "role.id",
+                "account": "Role"
+              }
+            ]
+          }
+        },
+        {
+          "name": "membership",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "arg",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "organization"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "user",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "create_role",
+      "docs": [
+        "Admin: define a role with a permission bitmask."
+      ],
+      "discriminator": [
+        170,
+        147,
+        127,
+        223,
+        222,
+        112,
+        205,
+        163
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "admin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "role",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "arg",
+                "path": "id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "organization"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "id",
+          "type": "u32"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "permissions",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize_organization",
+      "docs": [
+        "Create an organization (RBAC namespace) owned by the signer."
+      ],
+      "discriminator": [
+        21,
+        20,
+        253,
+        138,
+        250,
+        160,
+        119,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "admin"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "perform_action",
+      "docs": [
+        "Guarded action: succeeds only if the signer's role grants the",
+        "required permission bits."
+      ],
+      "discriminator": [
+        151,
+        230,
+        84,
+        7,
+        96,
+        176,
+        215,
+        160
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "relations": [
+            "role",
+            "membership"
+          ]
+        },
+        {
+          "name": "role",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  111,
+                  108,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "account",
+                "path": "role.id",
+                "account": "Role"
+              }
+            ]
+          }
+        },
+        {
+          "name": "membership",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "signer": true,
+          "relations": [
+            "membership"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "required_permission",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "revoke_membership",
+      "docs": [
+        "Admin: revoke a membership and refund its rent."
+      ],
+      "discriminator": [
+        109,
+        67,
+        109,
+        170,
+        189,
+        213,
+        233,
+        204
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "admin"
+              }
+            ]
+          },
+          "relations": [
+            "membership"
+          ]
+        },
+        {
+          "name": "membership",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "account",
+                "path": "membership.user",
+                "account": "Membership"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "organization"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "set_membership_status",
+      "docs": [
+        "Admin: activate or deactivate an existing membership."
+      ],
+      "discriminator": [
+        246,
+        118,
+        215,
+        77,
+        233,
+        72,
+        196,
+        13
+      ],
+      "accounts": [
+        {
+          "name": "organization",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  114,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "admin"
+              }
+            ]
+          },
+          "relations": [
+            "membership"
+          ]
+        },
+        {
+          "name": "membership",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  109,
+                  98,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organization"
+              },
+              {
+                "kind": "account",
+                "path": "membership.user",
+                "account": "Membership"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "organization"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "active",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Membership",
+      "discriminator": [
+        231,
+        141,
+        180,
+        98,
+        109,
+        168,
+        175,
+        166
+      ]
+    },
+    {
+      "name": "Organization",
+      "discriminator": [
+        145,
+        38,
+        152,
+        251,
+        91,
+        57,
+        118,
+        160
+      ]
+    },
+    {
+      "name": "Role",
+      "discriminator": [
+        46,
+        219,
+        197,
+        24,
+        233,
+        249,
+        253,
+        154
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "PermissionDenied",
+      "msg": "Caller's role does not grant the required permission"
+    },
+    {
+      "code": 6001,
+      "name": "MembershipInactive",
+      "msg": "Membership is inactive"
+    },
+    {
+      "code": 6002,
+      "name": "RoleMismatch",
+      "msg": "Role does not belong to the provided organization"
+    },
+    {
+      "code": 6003,
+      "name": "NameTooLong",
+      "msg": "Role name exceeds the maximum length"
+    }
+  ],
+  "types": [
+    {
+      "name": "Membership",
+      "docs": [
+        "Assignment of a user to a role within an organization. Web2 analogue: a",
+        "`user_roles` join-table row. The PDA address is derived from",
+        "(organization, user), so a user can hold at most one membership per org and",
+        "it is addressable without an index."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organization",
+            "type": "pubkey"
+          },
+          {
+            "name": "user",
+            "type": "pubkey"
+          },
+          {
+            "name": "role",
+            "type": "pubkey"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Organization",
+      "docs": [
+        "An RBAC namespace owned by a single admin.",
+        "",
+        "Web2 analogue: a `tenants`/`organizations` row plus the app-level notion of",
+        "\"who is the owner\". On Solana the owner is just a pubkey stored in the",
+        "account and enforced by `has_one` constraints on every privileged action."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "docs": [
+              "The authority allowed to create roles and manage memberships."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "role_count",
+            "docs": [
+              "Monotonic counter used to mint role ids."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "member_count",
+            "docs": [
+              "Number of currently-assigned memberships."
+            ],
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Role",
+      "docs": [
+        "A named bundle of permissions. Web2 analogue: a `roles` table row with a",
+        "`permissions` bitmask / scopes column."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organization",
+            "type": "pubkey"
+          },
+          {
+            "name": "id",
+            "type": "u32"
+          },
+          {
+            "name": "permissions",
+            "docs": [
+              "u64 bitmask — up to 64 independent capabilities per role."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "MEMBER_SEED",
+      "type": "bytes",
+      "value": "[109, 101, 109, 98, 101, 114]"
+    },
+    {
+      "name": "ORG_SEED",
+      "docs": [
+        "PDA seed prefixes. In a Web2 backend these would be table names / key",
+        "prefixes; on Solana they namespace deterministic account addresses."
+      ],
+      "type": "bytes",
+      "value": "[111, 114, 103]"
+    },
+    {
+      "name": "ROLE_SEED",
+      "type": "bytes",
+      "value": "[114, 111, 108, 101]"
+    }
+  ]
+}
