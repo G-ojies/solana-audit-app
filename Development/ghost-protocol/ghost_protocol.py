@@ -466,6 +466,29 @@ def scan_and_report(min_score: int = 2, output_file: str = "ghost_listings.json"
     )
     return enriched
 
+def watch(min_score: int = 2) -> list[dict]:
+    """Lightweight discovery for scheduled runs.
+
+    Fetches live listings, drops closed / past-deadline / low-match ones, and
+    prints a clear, machine-greppable verdict. Designed to be run on a schedule:
+    a wrapping agent notifies the human only when OPEN matches appear.
+
+    Prints a line beginning with 'GHOST_WATCH:' summarising the result.
+    """
+    raw = fetch_listings(take=20)
+    open_matches = filter_listings(raw, min_score=min_score) if raw else []
+
+    if open_matches:
+        print(f"GHOST_WATCH: {len(open_matches)} OPEN skill-matched listing(s) found 🔔")
+        print_listings_table(open_matches)
+        for l in open_matches:
+            print(f"  • [{l.get('_skillScore', score_listing(l))}] "
+                  f"{l.get('title', 'Untitled')} — {l.get('rewardAmount')} {l.get('token', '')} "
+                  f"| slug={l.get('slug')} | deadline={l.get('deadline')}")
+    else:
+        print("GHOST_WATCH: 0 open listings (nothing to submit to right now).")
+    return open_matches
+
 # ─── COMMAND HANDLERS ────────────────────────────────────────────────────────
 
 def resolve_listing(args) -> Optional[dict]:
@@ -579,7 +602,7 @@ Examples:
   python ghost_protocol.py submit --slug some-bounty --link https://… --info "..." --yes
         """,
     )
-    parser.add_argument("command", choices=["register", "scan", "show", "heartbeat", "submit"])
+    parser.add_argument("command", choices=["register", "scan", "show", "watch", "heartbeat", "submit"])
     parser.add_argument("--min-score", type=int, default=2, help="Minimum skill match score (default: 2)")
     parser.add_argument("--output", default="ghost_listings.json", help="JSON file for scan results / show / --from-saved")
     parser.add_argument("--slug", help="Listing slug for submit")
@@ -608,6 +631,12 @@ Examples:
         saved = load_saved_listings(args.output)
         if saved:
             print_listings_table(saved)
+
+    elif args.command == "watch":
+        if not API_KEY:
+            log.error("GHOST_API_KEY not set. Export it or add to .env")
+            return
+        watch(min_score=args.min_score)
 
     elif args.command == "heartbeat":
         emit_heartbeat()
