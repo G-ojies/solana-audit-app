@@ -292,17 +292,48 @@ def build_submission(listing: dict, link: str, description: str,
 
     return payload
 
-def collect_answers_interactively(listing: dict) -> dict:
-    """Prompt the operator for each eligibility question."""
-    questions = eligibility_questions(listing)
+def parse_answer_args(listing: dict, raw_answers: list) -> dict:
+    """Resolve `--answer key=value` pairs to {question_text: answer}.
+
+    `key` may be the question's 1-based index, its exact text, or a
+    case-insensitive substring of the question. Unmatched or ambiguous keys
+    are logged and skipped.
+    """
     answers = {}
-    if not questions:
+    if not raw_answers:
         return answers
-    print(f"\n📝 This listing has {len(questions)} eligibility question(s):")
-    for i, q in enumerate(questions, 1):
-        qtext = q.get("question", "") if isinstance(q, dict) else str(q)
-        ans = input(f"  {i}. {qtext}\n     > ").strip()
-        answers[qtext] = ans
+    questions = [
+        (q.get("question", "") if isinstance(q, dict) else str(q))
+        for q in eligibility_questions(listing)
+    ]
+    for item in raw_answers:
+        if "=" not in item:
+            log.warning(f"⚠️  Ignoring --answer '{item}' (expected key=value).")
+            continue
+        key, value = item.split("=", 1)
+        key, value = key.strip(), value.strip()
+
+        # 1) index match
+        if key.isdigit():
+            idx = int(key) - 1
+            if 0 <= idx < len(questions):
+                answers[questions[idx]] = value
+            else:
+                log.warning(f"⚠️  --answer index {key} out of range (1..{len(questions)}).")
+            continue
+        # 2) exact match
+        if key in questions:
+            answers[key] = value
+            continue
+        # 3) substring match (must be unambiguous)
+        matches = [q for q in questions if key.lower() in q.lower()]
+        if len(matches) == 1:
+            answers[matches[0]] = value
+        elif len(matches) > 1:
+            log.warning(f"⚠️  --answer key '{key}' matches {len(matches)} questions; "
+                        f"use the exact text or index.")
+        else:
+            log.warning(f"⚠️  --answer key '{key}' matched no eligibility question.")
     return answers
 
 def submit_listing(payload: dict) -> Optional[dict]:
@@ -465,10 +496,23 @@ def cmd_submit(args) -> None:
     if not args.info:
         log.info("No --info supplied; using an auto-generated draft description.")
 
-    # Eligibility answers: interactive unless non-interactive (--yes) is requested
-    answers = {}
-    if eligibility_questions(listing) and not args.yes:
-        answers = collect_answers_interactively(listing)
+    # Eligibility answers: start from --answer flags, then fall back to
+    # interactively prompting for anything still missing (unless --yes).
+    answers = parse_answer_args(listing, args.answer)
+    questions = eligibility_questions(listing)
+    if questions and not args.yes:
+        missing = [
+            (q.get("question", "") if isinstance(q, dict) else str(q))
+            for q in questions
+        ]
+        missing = [q for q in missing if not answers.get(q)]
+        if missing:
+            print(f"\n📝 {len(missing)} eligibility question(s) still need answers "
+                  f"(blank = leave empty):")
+            for q in missing:
+                ans = input(f"  • {q}\n     > ").strip()
+                if ans:
+                    answers[q] = ans
 
     payload = build_submission(listing, args.link, description, ask=args.ask, answers=answers)
 
@@ -507,6 +551,8 @@ Examples:
   python ghost_protocol.py scan --min-score 3
   python ghost_protocol.py show
   python ghost_protocol.py submit --from-saved 2 --link https://github.com/me/pr --dry-run
+  python ghost_protocol.py submit --from-saved 2 --link https://… \\
+      --answer 1=https://youtu.be/pitch --answer repo=https://github.com/me/x --yes
   python ghost_protocol.py submit --slug some-bounty --link https://… --info "..." --yes
         """,
     )
@@ -517,6 +563,9 @@ Examples:
     parser.add_argument("--from-saved", type=int, metavar="N", help="Submit to row N from the saved scan (see 'show')")
     parser.add_argument("--link", help="Submission link URL")
     parser.add_argument("--info", help="Submission description / otherInfo (auto-drafted if omitted)")
+    parser.add_argument("--answer", action="append", default=[], metavar="KEY=VALUE",
+                        help="Eligibility answer; KEY is the question index, exact text, or a "
+                             "substring. Repeatable, e.g. --answer 1=https://… --answer repo=https://…")
     parser.add_argument("--ask", type=float, help="Reward ask amount (for variable-comp listings)")
     parser.add_argument("--dry-run", action="store_true", help="Build and print the payload without submitting")
     parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt (non-interactive)")
