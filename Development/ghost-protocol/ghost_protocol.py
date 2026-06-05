@@ -210,10 +210,27 @@ def score_listing(listing: dict) -> int:
             score += 1
     return score
 
+def is_past_deadline(listing: dict) -> bool:
+    """True if the listing's deadline has elapsed.
+
+    The agent 'live listings' endpoint returns bounties as status=OPEN even
+    after their deadline; submitting to those yields a 403 'Submissions closed'.
+    Checking the deadline ourselves avoids wasting effort on dead listings.
+    """
+    deadline = listing.get("deadline")
+    if not deadline:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(deadline).replace("Z", "+00:00"))
+        return dt < datetime.now(timezone.utc)
+    except (ValueError, TypeError):
+        return False
+
 def filter_listings(listings: list[dict], min_score: int = 1) -> list[dict]:
     """Filter and rank listings by skill match score, excluding closed listings."""
     scored = []
     closed = 0
+    expired = 0
     for l in listings:
         if l.get("type") not in TARGET_TYPES:
             continue
@@ -221,11 +238,17 @@ def filter_listings(listings: list[dict], min_score: int = 1) -> list[dict]:
         if l.get("isSubmissionClosed") or l.get("status") == "CLOSED":
             closed += 1
             continue
+        # Skip listings whose deadline has already passed (API still marks OPEN)
+        if is_past_deadline(l):
+            expired += 1
+            continue
         s = score_listing(l)
         if s >= min_score:
             scored.append((s, l))
     if closed:
         log.info(f"⏭️  Skipped {closed} listings with closed submissions")
+    if expired:
+        log.info(f"⏭️  Skipped {expired} listings past their deadline")
     scored.sort(key=lambda x: x[0], reverse=True)
     result = [l for _, l in scored]
     log.info(f"🎯 Filtered to {len(result)} open, skill-matched listings")
