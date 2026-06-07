@@ -187,6 +187,21 @@ def fetch_listings(take: int = 20) -> list[dict]:
     log.warning("No listings returned from any param set.")
     return []
 
+def fetch_public_listings(take: int = 50) -> list[dict]:
+    """Fetch the public Superteam Earn bounty board (no auth required).
+
+    This is the human-submittable pool — much larger than the agent-only
+    endpoint, and the place where genuinely-open opportunities show up.
+    """
+    log.info(f"Fetching public Superteam Earn listings (take={take})...")
+    data = _request("GET", "/api/listings",
+                    params={"take": take},
+                    headers={"Content-Type": "application/json"})
+    listings = data if isinstance(data, list) else (data or {}).get("listings", [])
+    if listings:
+        log.info(f"📋 Found {len(listings)} public listings")
+    return listings or []
+
 def safe_str(val) -> str:
     """Convert any value to a flat string for keyword matching."""
     if isinstance(val, list):
@@ -466,17 +481,37 @@ def scan_and_report(min_score: int = 2, output_file: str = "ghost_listings.json"
     )
     return enriched
 
-def watch(min_score: int = 2) -> list[dict]:
+def watch(min_score: int = 2, public: bool = True) -> list[dict]:
     """Lightweight discovery for scheduled runs.
 
-    Fetches live listings, drops closed / past-deadline / low-match ones, and
-    prints a clear, machine-greppable verdict. Designed to be run on a schedule:
-    a wrapping agent notifies the human only when OPEN matches appear.
+    Fetches live listings from the agent-eligible endpoint and (by default) the
+    public Superteam Earn bounty board, merges + dedupes them, drops closed /
+    past-deadline / low-match ones, and prints a machine-greppable verdict.
+    Designed to be run on a schedule: a wrapping agent notifies the human only
+    when OPEN matches appear.
 
     Prints a line beginning with 'GHOST_WATCH:' summarising the result.
     """
-    raw = fetch_listings(take=20)
-    open_matches = filter_listings(raw, min_score=min_score) if raw else []
+    raw = list(fetch_listings(take=20) or [])
+    for l in raw:
+        l.setdefault("_source", "agent")
+
+    if public:
+        for l in fetch_public_listings(take=50):
+            l["_source"] = "public"
+            raw.append(l)
+
+    # Dedupe by listing id (agent + public can overlap), keeping the first seen.
+    seen = set()
+    deduped = []
+    for l in raw:
+        lid = l.get("id")
+        if lid in seen:
+            continue
+        seen.add(lid)
+        deduped.append(l)
+
+    open_matches = filter_listings(deduped, min_score=min_score) if deduped else []
 
     if open_matches:
         print(f"GHOST_WATCH: {len(open_matches)} OPEN skill-matched listing(s) found 🔔")
@@ -484,7 +519,7 @@ def watch(min_score: int = 2) -> list[dict]:
         for l in open_matches:
             print(f"  • [{l.get('_skillScore', score_listing(l))}] "
                   f"{l.get('title', 'Untitled')} — {l.get('rewardAmount')} {l.get('token', '')} "
-                  f"| slug={l.get('slug')} | deadline={l.get('deadline')}")
+                  f"| {l.get('_source', '?')} | slug={l.get('slug')} | deadline={l.get('deadline')}")
     else:
         print("GHOST_WATCH: 0 open listings (nothing to submit to right now).")
     return open_matches
@@ -615,6 +650,7 @@ Examples:
     parser.add_argument("--ask", type=float, help="Reward ask amount (for variable-comp listings)")
     parser.add_argument("--dry-run", action="store_true", help="Build and print the payload without submitting")
     parser.add_argument("--yes", action="store_true", help="Skip the confirmation prompt (non-interactive)")
+    parser.add_argument("--no-public", action="store_true", help="watch: only the agent endpoint, skip the public bounty board")
 
     args = parser.parse_args()
 
@@ -633,10 +669,7 @@ Examples:
             print_listings_table(saved)
 
     elif args.command == "watch":
-        if not API_KEY:
-            log.error("GHOST_API_KEY not set. Export it or add to .env")
-            return
-        watch(min_score=args.min_score)
+        watch(min_score=args.min_score, public=not args.no_public)
 
     elif args.command == "heartbeat":
         emit_heartbeat()
