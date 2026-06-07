@@ -1,0 +1,650 @@
+{
+  "address": "Ggb46RAz1cWos2fQp4eWorFPpjPWouTBzccyCDVMGcgU",
+  "metadata": {
+    "name": "fair_tickets",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "docs": [
+    "fair-tickets — event ticketing with an on-chain fair-resale guarantee.",
+    "",
+    "An everyday system (buying and reselling event tickets) rebuilt as a Solana",
+    "program. The core friction it removes is scalping: the organizer sets a",
+    "resale price ceiling that the program itself enforces, so no secondary buyer",
+    "can be gouged and no platform has to be trusted to police it."
+  ],
+  "instructions": [
+    {
+      "name": "buy_resale",
+      "docs": [
+        "Secondary sale: buy a listed ticket peer-to-peer from its owner."
+      ],
+      "discriminator": [
+        71,
+        230,
+        159,
+        123,
+        90,
+        231,
+        111,
+        104
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "relations": [
+            "ticket"
+          ]
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.serial",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "seller",
+          "docs": [
+            "Current owner; receives the resale payment."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "buy_ticket",
+      "docs": [
+        "Primary sale: buy a ticket at face price from the organizer."
+      ],
+      "discriminator": [
+        11,
+        24,
+        17,
+        193,
+        168,
+        116,
+        164,
+        169
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event.organizer",
+                "account": "Event"
+              },
+              {
+                "kind": "account",
+                "path": "event.event_id",
+                "account": "Event"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event"
+              },
+              {
+                "kind": "account",
+                "path": "event.sold",
+                "account": "Event"
+              }
+            ]
+          }
+        },
+        {
+          "name": "buyer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "organizer",
+          "docs": [
+            "Receives the face-price payment; pinned to the event's organizer."
+          ],
+          "writable": true,
+          "relations": [
+            "event"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancel_resale",
+      "docs": [
+        "Cancel an active resale listing."
+      ],
+      "discriminator": [
+        215,
+        11,
+        117,
+        119,
+        200,
+        163,
+        110,
+        66
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "relations": [
+            "ticket"
+          ]
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.serial",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "ticket"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_event",
+      "docs": [
+        "Organizer creates an event with a face price, resale cap, and supply."
+      ],
+      "discriminator": [
+        49,
+        219,
+        29,
+        203,
+        22,
+        98,
+        100,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer"
+              },
+              {
+                "kind": "arg",
+                "path": "event_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "organizer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "event_id",
+          "type": "u64"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "price",
+          "type": "u64"
+        },
+        {
+          "name": "max_resale_price",
+          "type": "u64"
+        },
+        {
+          "name": "supply",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "list_resale",
+      "docs": [
+        "List an owned ticket for resale (price must be <= the event cap)."
+      ],
+      "discriminator": [
+        241,
+        79,
+        32,
+        48,
+        11,
+        99,
+        177,
+        194
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "relations": [
+            "ticket"
+          ]
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.serial",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "ticket"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "price",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "redeem",
+      "docs": [
+        "Organizer checks a ticket in at the door (disables further resale)."
+      ],
+      "discriminator": [
+        184,
+        12,
+        86,
+        149,
+        70,
+        196,
+        97,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "event",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  118,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "organizer"
+              },
+              {
+                "kind": "account",
+                "path": "event.event_id",
+                "account": "Event"
+              }
+            ]
+          },
+          "relations": [
+            "ticket"
+          ]
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "event"
+              },
+              {
+                "kind": "account",
+                "path": "ticket.serial",
+                "account": "Ticket"
+              }
+            ]
+          }
+        },
+        {
+          "name": "organizer",
+          "signer": true,
+          "relations": [
+            "event"
+          ]
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Event",
+      "discriminator": [
+        125,
+        192,
+        125,
+        158,
+        9,
+        115,
+        152,
+        233
+      ]
+    },
+    {
+      "name": "Ticket",
+      "discriminator": [
+        41,
+        228,
+        24,
+        165,
+        78,
+        90,
+        235,
+        200
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "SoldOut",
+      "msg": "Event is sold out"
+    },
+    {
+      "code": 6001,
+      "name": "ResaleAboveCap",
+      "msg": "Resale price exceeds the organizer's fair-resale cap"
+    },
+    {
+      "code": 6002,
+      "name": "NotForSale",
+      "msg": "Ticket is not listed for resale"
+    },
+    {
+      "code": 6003,
+      "name": "NotOwner",
+      "msg": "Only the ticket owner may perform this action"
+    },
+    {
+      "code": 6004,
+      "name": "AlreadyRedeemed",
+      "msg": "Ticket has already been redeemed (checked in)"
+    },
+    {
+      "code": 6005,
+      "name": "AlreadyOwner",
+      "msg": "Buyer already owns this ticket"
+    },
+    {
+      "code": 6006,
+      "name": "NameTooLong",
+      "msg": "Event name exceeds the maximum length"
+    }
+  ],
+  "types": [
+    {
+      "name": "Event",
+      "docs": [
+        "An event created by an organizer. Web2 analogue: a row in an events table on",
+        "a ticketing platform's private database. Here the rules (price, supply, and",
+        "crucially the resale ceiling) live on-chain and bind everyone equally."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "organizer",
+            "type": "pubkey"
+          },
+          {
+            "name": "event_id",
+            "type": "u64"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "price",
+            "docs": [
+              "Primary sale price, in lamports."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "max_resale_price",
+            "docs": [
+              "The maximum lamports a ticket may be resold for. This is the anti-scalp",
+              "guarantee — enforced by the program, not by a platform's goodwill."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "supply",
+            "type": "u32"
+          },
+          {
+            "name": "sold",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticket",
+      "docs": [
+        "A single ticket. Web2 analogue: a barcode/row owned by the platform that you",
+        "merely have a claim to. Here the ticket is an on-chain account whose `owner`",
+        "field is the source of truth; transfers are atomic with payment."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "event",
+            "type": "pubkey"
+          },
+          {
+            "name": "serial",
+            "type": "u32"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "paid",
+            "docs": [
+              "Lamports actually paid by the current owner (primary or resale)."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "for_sale",
+            "type": "bool"
+          },
+          {
+            "name": "resale_price",
+            "type": "u64"
+          },
+          {
+            "name": "redeemed",
+            "docs": [
+              "True once checked in at the door; a redeemed ticket can't be resold."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "constants": [
+    {
+      "name": "EVENT_SEED",
+      "docs": [
+        "PDA seed prefixes."
+      ],
+      "type": "bytes",
+      "value": "[101, 118, 101, 110, 116]"
+    },
+    {
+      "name": "TICKET_SEED",
+      "type": "bytes",
+      "value": "[116, 105, 99, 107, 101, 116]"
+    }
+  ]
+}
