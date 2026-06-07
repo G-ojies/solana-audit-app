@@ -10,6 +10,10 @@ PROJECT_DIR="/home/greyat_labs/Development/ghost-protocol"
 LOG="$PROJECT_DIR/ghost_watch.log"
 cd "$PROJECT_DIR" || exit 1
 
+# "heartbeat" mode sends a Telegram status even when there are 0 open listings,
+# so the user has positive confirmation the watcher is alive.
+MODE="${1:-watch}"
+
 # Make desktop notifications work from a cron environment.
 export DISPLAY="${DISPLAY:-:0}"
 export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}"
@@ -37,4 +41,10 @@ if [ -n "$VERDICT" ] && ! printf '%s' "$VERDICT" | grep -q '0 open listings'; th
         printf '\nSubmit the onchain-rbac deliverable with:\n'
         printf '  python3 ghost_protocol.py submit --slug <slug> --link https://github.com/G-ojies/solana-audit-app/tree/master/Development/onchain-rbac --info "..."\n'
     } | python3 ghost_notify.py --subject "Ghost Protocol: ${COUNT:-some} open listing(s) 🔔" 2>>"$LOG" || true
+
+elif [ "$MODE" = "heartbeat" ]; then
+    # Positive liveness ping regardless of result.
+    printf '%s' "Ghost Protocol watcher is alive ✅
+${VERDICT:-no verdict}" \
+        | python3 ghost_notify.py --subject "Ghost Protocol — weekly heartbeat 💓" 2>>"$LOG" || true
 fi
