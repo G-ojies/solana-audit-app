@@ -29,4 +29,12 @@ if [ -n "$VERDICT" ] && ! printf '%s' "$VERDICT" | grep -q '0 open listings'; th
     notify-send -u critical "Ghost Protocol 🔔" \
         "${COUNT:-Some} open Superteam listing(s) found. See $LOG and run a submission." \
         2>>"$LOG" || true
+
+    # Email alert (no-op if SMTP_* not configured in .env).
+    {
+        printf '%s open Superteam listing(s) matched Ghost Protocol.\n\n' "${COUNT:-Some}"
+        printf '%s\n' "$OUT" | grep -E '^\s+•'
+        printf '\nSubmit the onchain-rbac deliverable with:\n'
+        printf '  python3 ghost_protocol.py submit --slug <slug> --link https://github.com/G-ojies/solana-audit-app/tree/master/Development/onchain-rbac --info "..."\n'
+    } | python3 ghost_notify.py --subject "Ghost Protocol: ${COUNT:-some} open listing(s) 🔔" 2>>"$LOG" || true
 fi
